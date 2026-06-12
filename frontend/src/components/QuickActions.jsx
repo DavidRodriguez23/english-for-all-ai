@@ -1,18 +1,20 @@
 import { motion } from 'framer-motion'
-
-const SUGGESTIONS = [
-  { icon: '💬', label: 'Start a conversation', message: 'Let\'s talk! How was your day?' },
-  { icon: '✏️', label: 'Fix my grammar', message: 'Can you correct this sentence: "Yesterday I go to the store and buyed some food."' },
-  { icon: '📖', label: 'Learn a word', message: 'What does "perseverance" mean? Give me examples.' },
-  { icon: '🎭', label: 'Roleplay: job interview', message: 'Let\'s roleplay a job interview. I\'m applying for a marketing position.' },
-  { icon: '🎯', label: 'Assess my level', message: 'Test me and evaluate my English level. I will write a few sentences about my life.' },
-  { icon: '🗣️', label: 'Practice pronunciation', message: 'How do I pronounce "comfortable" and "particularly"? My accent is Spanish.' },
-]
+import { useT } from '../hooks/useT'
 
 export function QuickActions({ onSelect }) {
+  const t = useT()
+
+  const suggestions = [
+    { icon: '💬', label: t.startConversation,    message: "Let's talk! How was your day?" },
+    { icon: '✏️', label: t.fixMyGrammar,         message: 'Can you correct this sentence: "Yesterday I go to the store and buyed some food."' },
+    { icon: '📖', label: t.learnAWord,            message: 'What does "perseverance" mean? Give me examples.' },
+    { icon: '🎭', label: t.roleplayInterview,     message: "Let's roleplay a job interview. I'm applying for a marketing position." },
+    { icon: '🎯', label: t.assessMyLevel,         message: 'Test me and evaluate my English level. I will write a few sentences about my life.' },
+    { icon: '🗣️', label: t.practicePronunciation, message: 'How do I pronounce "comfortable" and "particularly"? My accent is Spanish.' },
+  ]
+
   return (
     <div className="flex flex-col items-center gap-6 py-8 px-4">
-      {/* Hero greeting */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -20,16 +22,15 @@ export function QuickActions({ onSelect }) {
       >
         <div className="text-5xl mb-4">🎓</div>
         <h2 className="font-display text-2xl font-bold text-cloud-100 mb-2">
-          Ready to practice?
+          {t.readyToPractice}
         </h2>
         <p className="text-cloud-400 text-sm max-w-xs">
-          Your AI tutor is here. Ask anything, make mistakes — that's how you learn.
+          {t.readySubtitle}
         </p>
       </motion.div>
 
-      {/* Quick action chips */}
       <div className="grid grid-cols-1 gap-2 w-full max-w-sm">
-        {SUGGESTIONS.map((s, i) => (
+        {suggestions.map((s, i) => (
           <motion.button
             key={s.label}
             initial={{ opacity: 0, x: -10 }}

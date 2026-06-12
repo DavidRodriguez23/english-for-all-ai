@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { useT } from '../hooks/useT'
 
 export function ChatInput({ onSend, isLoading, disabled }) {
   const [text, setText] = useState('')
   const textareaRef = useRef(null)
+  const t = useT()
 
-  // Auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current
     if (!el) return
@@ -17,9 +18,7 @@ export function ChatInput({ onSend, isLoading, disabled }) {
     if (!text.trim() || isLoading || disabled) return
     onSend(text)
     setText('')
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-    }
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
   }
 
   const handleKeyDown = (e) => {
@@ -32,7 +31,7 @@ export function ChatInput({ onSend, isLoading, disabled }) {
   const canSend = text.trim().length > 0 && !isLoading && !disabled
 
   return (
-    <div className="p-3 pb-safe">
+    <div className="p-3">
       <div className="glass rounded-2xl flex items-end gap-2 p-2 max-w-2xl mx-auto">
         <textarea
           ref={textareaRef}
@@ -40,11 +39,10 @@ export function ChatInput({ onSend, isLoading, disabled }) {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={isLoading || disabled}
-          placeholder="Type a message or ask anything... (Enter to send)"
+          placeholder={t.inputPlaceholder}
           rows={1}
           className="flex-1 bg-transparent text-cloud-200 placeholder-cloud-600 text-sm resize-none outline-none px-3 py-2 leading-relaxed disabled:opacity-50 max-h-40 overflow-y-auto"
         />
-
         <motion.button
           onClick={handleSend}
           disabled={!canSend}
@@ -64,10 +62,7 @@ export function ChatInput({ onSend, isLoading, disabled }) {
           )}
         </motion.button>
       </div>
-
-      <p className="text-center text-xs text-cloud-600 mt-2">
-        Shift + Enter for new line · Your tutor adapts to your level
-      </p>
+      <p className="text-center text-xs text-cloud-600 mt-2">{t.inputHint}</p>
     </div>
   )
 }
