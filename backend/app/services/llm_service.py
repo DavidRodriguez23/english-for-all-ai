@@ -9,38 +9,40 @@ from app.models.user import UserProfile
 load_dotenv()
 
 # --- Provider detection ---
-# If GROQ_API_KEY is set → use Groq (production)
-# Otherwise → use Ollama (local dev)
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-USE_GROQ = bool(GROQ_API_KEY)
+# GOOGLE_API_KEY set → Gemini (production, free)
+# Otherwise         → Ollama (local dev)
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
+USE_GEMINI = bool(GOOGLE_API_KEY)
 
-# Ollama settings (local)
+# Ollama (local)
 OLLAMA_URL   = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 
-# Groq settings (production) — free tier, very fast
-GROQ_URL   = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+# Gemini (production) — free tier, fast, great for English tutoring
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_URL   = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 REQUEST_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "60"))
 
 
-async def _call_groq(prompt: str) -> str:
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json",
-    }
+async def _call_gemini(prompt: str) -> str:
     payload = {
-        "model": GROQ_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 1024,
-        "temperature": 0.7,
+        "contents": [
+            {"parts": [{"text": prompt}]}
+        ],
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": 1024,
+            "topP": 0.9,
+        }
     }
+    url = f"{GEMINI_URL}?key={GOOGLE_API_KEY}"
+
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        response = await client.post(GROQ_URL, headers=headers, json=payload)
+        response = await client.post(url, json=payload)
         response.raise_for_status()
         data = response.json()
-        return data["choices"][0]["message"]["content"].strip()
+        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
 
 async def _call_ollama(prompt: str) -> str:
@@ -67,7 +69,7 @@ async def generate_tutor_response(
     history: str = "",
 ) -> str:
     intent = detect_intent(message)
-    provider = "Groq" if USE_GROQ else "Ollama"
+    provider = "Gemini" if USE_GEMINI else "Ollama"
     print(f"[LLM] Intent: {intent} | Level: {level} | Provider: {provider}")
 
     prompt = build_prompt(
@@ -78,7 +80,7 @@ async def generate_tutor_response(
         history=history,
     )
 
-    if USE_GROQ:
-        return await _call_groq(prompt)
+    if USE_GEMINI:
+        return await _call_gemini(prompt)
     else:
         return await _call_ollama(prompt)
