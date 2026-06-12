@@ -5,86 +5,108 @@ export function useSpeechSynthesis() {
   const utteranceRef = useRef(null)
   const isSupported = typeof window !== 'undefined' && 'speechSynthesis' in window
 
-  const getBestVoice = (lang = 'en-US') => {
+  const getVoice = (lang) => {
     const voices = window.speechSynthesis.getVoices()
-    if (lang === 'en-US') {
-      const preferred = ['Samantha', 'Karen', 'Daniel', 'Google US English',
-        'Microsoft Aria', 'Microsoft Jenny', 'Alex']
+    if (lang === 'es') {
+      // Best Spanish voices
+      const preferred = ['Monica', 'Paulina', 'Google español', 'Microsoft Sabina', 'Conchita', 'Jorge']
       for (const name of preferred) {
         const v = voices.find(v => v.name.includes(name))
         if (v) return v
       }
-      return voices.find(v => v.lang.startsWith('en')) || voices[0]
+      return voices.find(v => v.lang.startsWith('es')) || null
     } else {
-      // Spanish voice for bilingual responses
-      return voices.find(v => v.lang.startsWith('es')) || voices[0]
+      // Best English voices
+      const preferred = ['Samantha', 'Karen', 'Google US English', 'Microsoft Aria', 'Microsoft Jenny', 'Alex']
+      for (const name of preferred) {
+        const v = voices.find(v => v.name.includes(name))
+        if (v) return v
+      }
+      return voices.find(v => v.lang.startsWith('en')) || null
     }
   }
 
-  const speak = useCallback((text, lang = 'en-US') => {
-    if (!isSupported) return
-    window.speechSynthesis.cancel()
+  // Split mixed text into segments by language
+  // Spanish text: anything between parentheses OR after common Spanish markers
+  const splitByLanguage = (text) => {
+    const segments = []
+    // Split on parenthetical translations like "(Soy tu tutor)"
+    const parts = text.split(/(\([^)]+\))/)
+    parts.forEach(part => {
+      if (!part.trim()) return
+      const isSpanish = part.startsWith('(') && part.endsWith(')')
+      segments.push({
+        text: isSpanish ? part.slice(1, -1) : part,
+        lang: isSpanish ? 'es' : 'en'
+      })
+    })
+    return segments.length > 0 ? segments : [{ text, lang: 'en' }]
+  }
 
+  const speakSegment = (text, lang, rate, onEnd) => {
     const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = lang
-    utterance.rate = 0.9   // slightly slower = clearer for learners
+    utterance.lang = lang === 'es' ? 'es-ES' : 'en-US'
+    utterance.rate = rate
     utterance.pitch = 1.0
     utterance.volume = 1.0
 
-    const trySpeak = () => {
-      const voice = getBestVoice(lang)
-      if (voice) utterance.voice = voice
-      utterance.onstart = () => setIsSpeaking(true)
-      utterance.onend   = () => setIsSpeaking(false)
-      utterance.onerror = () => setIsSpeaking(false)
-      utteranceRef.current = utterance
-      window.speechSynthesis.speak(utterance)
+    const voice = getVoice(lang)
+    if (voice) utterance.voice = voice
+
+    utterance.onend = onEnd
+    utterance.onerror = onEnd
+    utteranceRef.current = utterance
+    window.speechSynthesis.speak(utterance)
+  }
+
+  const speakBilingual = useCallback((text, level) => {
+    if (!isSupported) return
+    window.speechSynthesis.cancel()
+
+    const beginnerLevels = ['beginner', 'elementary']
+    const rate = beginnerLevels.includes(level) ? 0.85 : 0.92
+    setIsSpeaking(true)
+
+    if (!beginnerLevels.includes(level)) {
+      // For intermediate+ just speak in English
+      speakSegment(text, 'en', rate, () => setIsSpeaking(false))
+      return
+    }
+
+    // For beginners: split and speak each segment in its language
+    const doSpeak = () => {
+      const segments = splitByLanguage(text)
+
+      const speakNext = (index) => {
+        if (index >= segments.length) {
+          setIsSpeaking(false)
+          return
+        }
+        const { text: segText, lang } = segments[index]
+        speakSegment(segText.trim(), lang, rate, () => speakNext(index + 1))
+      }
+
+      speakNext(0)
     }
 
     if (window.speechSynthesis.getVoices().length === 0) {
-      window.speechSynthesis.onvoiceschanged = trySpeak
+      window.speechSynthesis.onvoiceschanged = doSpeak
     } else {
-      trySpeak()
+      doSpeak()
     }
   }, [isSupported])
 
-  // For beginner/elementary levels, use a mixed-language speaker approach:
-  // split text by language markers and speak each part with the right voice
-  const speakBilingual = useCallback((text, level) => {
+  const speak = useCallback((text, lang = 'en') => {
     if (!isSupported) return
-    const beginnerLevels = ['beginner', 'elementary']
-    if (!beginnerLevels.includes(level)) {
-      speak(text, 'en-US')
-      return
-    }
-    // For beginner/elementary: speak the whole thing — the browser
-    // will use the language of the utterance. We set en-US but the
-    // text already contains Spanish mixed in, which is fine for TTS.
-    // The key is speaking slowly and clearly.
     window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = 'en-US'
-    utterance.rate = 0.82   // even slower for beginners
-    utterance.pitch = 1.0
-    utterance.volume = 1.0
-
-    const trySpeak = () => {
-      const voices = window.speechSynthesis.getVoices()
-      const voice = voices.find(v => v.lang.startsWith('en')) || voices[0]
-      if (voice) utterance.voice = voice
-      utterance.onstart = () => setIsSpeaking(true)
-      utterance.onend   = () => setIsSpeaking(false)
-      utterance.onerror = () => setIsSpeaking(false)
-      utteranceRef.current = utterance
-      window.speechSynthesis.speak(utterance)
-    }
-
+    setIsSpeaking(true)
+    const doSpeak = () => speakSegment(text, lang, 0.92, () => setIsSpeaking(false))
     if (window.speechSynthesis.getVoices().length === 0) {
-      window.speechSynthesis.onvoiceschanged = trySpeak
+      window.speechSynthesis.onvoiceschanged = doSpeak
     } else {
-      trySpeak()
+      doSpeak()
     }
-  }, [isSupported, speak])
+  }, [isSupported])
 
   const stop = useCallback(() => {
     window.speechSynthesis.cancel()
