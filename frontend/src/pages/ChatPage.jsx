@@ -17,24 +17,31 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
 
+  // Handle autoMessage from profile CTA
+  useEffect(() => {
+    const auto = sessionStorage.getItem('autoMessage')
+    if (auto) {
+      sessionStorage.removeItem('autoMessage')
+      setTimeout(() => sendMessage(auto), 400)
+    }
+  }, [])
+
   const isEmpty = messages.length === 0
 
   return (
-    <div className="flex flex-col h-screen bg-night-950">
+    <div className="flex flex-col bg-night-950" style={{ height: '100dvh' }}>
       <Header onNewSession={newSession} />
 
       <ErrorBanner message={error} onDismiss={clearError} />
 
-      {/* Messages area */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Messages area — extra bottom padding for BottomNav */}
+      <div className="flex-1 overflow-y-auto pb-20">
         <div className="max-w-2xl mx-auto px-4 py-4">
 
-          {/* Empty state with quick actions */}
           {isEmpty && !isLoading && (
             <QuickActions onSelect={sendMessage} />
           )}
 
-          {/* Message list */}
           <div className="flex flex-col gap-4">
             <AnimatePresence initial={false}>
               {messages.map((msg) => (
@@ -42,7 +49,6 @@ export default function ChatPage() {
               ))}
             </AnimatePresence>
 
-            {/* Typing indicator */}
             <AnimatePresence>
               {isLoading && <TypingIndicator />}
             </AnimatePresence>
@@ -52,12 +58,14 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Input area */}
-      <ChatInput
-        onSend={sendMessage}
-        isLoading={isLoading}
-        disabled={false}
-      />
+      {/* Input sits above BottomNav */}
+      <div className="pb-16">
+        <ChatInput
+          onSend={sendMessage}
+          isLoading={isLoading}
+          disabled={false}
+        />
+      </div>
     </div>
   )
 }
