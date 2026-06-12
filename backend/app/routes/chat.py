@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 import traceback
 
 from app.db.database import get_session
 from app.services.llm_service import generate_tutor_response
+from app.services.tts_service import text_to_speech_bilingual
 from app.services.memory_service import (
     add_message,
     get_conversation_history,
@@ -36,17 +37,14 @@ async def chat(
     db: AsyncSession = Depends(get_session)
 ):
     try:
-        # 1. Load persistent user profile
         profile = await get_or_create_profile(request.user_id, db)
 
-        # 2. Update profile from what the user said
         profile, profile_changed = update_profile_from_message(
             profile, request.message
         )
         if profile_changed:
             await save_profile(profile, db)
 
-        # 3. Persist user message
         await add_message(
             request.session_id,
             request.user_id,
@@ -55,7 +53,6 @@ async def chat(
             db=db
         )
 
-        # 4. Load conversation history and format for prompt
         history_messages = await get_conversation_history(
             request.session_id,
             request.user_id,
@@ -64,7 +61,6 @@ async def chat(
         )
         history_text = format_history_for_prompt(history_messages)
 
-        # 5. Generate LLM response
         response_text = await generate_tutor_response(
             message=request.message,
             level=request.level or profile.english_level,
@@ -72,7 +68,6 @@ async def chat(
             history=history_text,
         )
 
-        # 6. Persist assistant response
         await add_message(
             request.session_id,
             request.user_id,
@@ -91,6 +86,38 @@ async def chat(
         print("\n========= ERROR =========")
         traceback.print_exc()
         print("=========================\n")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class TTSRequest(BaseModel):
+    text: str
+    level: str = "beginner"
+
+
+@router.post("/tts")
+async def tts(request: TTSRequest):
+    """
+    Convert tutor response to speech using ElevenLabs.
+    Returns MP3 audio bytes.
+    """
+    try:
+        audio = await text_to_speech_bilingual(request.text, request.level)
+
+        if audio is None:
+            raise HTTPException(
+                status_code=503,
+                detail="TTS service not configured"
+            )
+
+        return Response(
+            content=audio,
+            media_type="audio/mpeg",
+            headers={"Cache-Control": "no-cache"}
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
