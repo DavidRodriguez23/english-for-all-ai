@@ -1,4 +1,5 @@
 from app.models.user import UserProfile
+from app.prompts.bilingual_instructions import get_bilingual_instructions
 
 from app.prompts.conversation_prompt import CONVERSATION_PROMPT
 from app.prompts.grammar_prompt import GRAMMAR_PROMPT
@@ -13,7 +14,6 @@ from app.prompts.adaptive_learning_prompt import ADAPTIVE_LEARNING_PROMPT
 
 
 def _detect_scenario(message: str) -> str:
-    """Extract a roleplay scenario from the user message."""
     text = message.lower()
     scenarios = {
         "restaurant": "Restaurant — ordering food and drinks",
@@ -35,16 +35,17 @@ def build_prompt(
     message: str,
     level: str,
     profile: UserProfile,
-    history: str = ""
+    history: str = "",
 ) -> str:
     """
-    Return the fully formatted prompt for the given intent.
-    Every placeholder is filled — nothing reaches the LLM as {variable}.
+    Build the fully formatted prompt for the given intent.
+    Bilingual instructions are injected into EVERY prompt so the
+    AI always knows how much Spanish to use based on the student's level.
     """
 
     profile_context = profile.to_context_string()
+    bilingual = get_bilingual_instructions(level)
 
-    # Each intent gets exactly the variables its template uses
     templates = {
         "conversation": lambda: CONVERSATION_PROMPT.format(
             level=level,
@@ -93,6 +94,10 @@ def build_prompt(
     builder = templates.get(intent, templates["conversation"])
     filled_prompt = builder()
 
-    # Append profile context to every prompt so the model
-    # always knows who it's talking to
-    return f"{filled_prompt}\n\n---\n{profile_context}"
+    # Inject bilingual instructions + profile context into every single prompt
+    return f"""{filled_prompt}
+
+---
+{bilingual}
+---
+{profile_context}"""
