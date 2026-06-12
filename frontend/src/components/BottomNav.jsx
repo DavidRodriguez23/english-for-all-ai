@@ -1,8 +1,10 @@
 import { NavLink } from 'react-router-dom'
 import { useT } from '../hooks/useT'
+import { useStore } from '../store/useStore'
 
 export function BottomNav() {
   const t = useT()
+  const { uiLanguage } = useStore()
 
   const tabs = [
     {
@@ -11,6 +13,15 @@ export function BottomNav() {
       icon: (active) => (
         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      ),
+    },
+    {
+      to: '/conversation',
+      label: uiLanguage === 'es' ? 'Hablar' : 'Speak',
+      icon: (active) => (
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
         </svg>
       ),
     },
