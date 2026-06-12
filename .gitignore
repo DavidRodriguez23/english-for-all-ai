@@ -1,0 +1,25 @@
+# Mac
+.DS_Store
+**/.DS_Store
+
+# Python
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.db
+
+# Node
+node_modules/
+**/node_modules/
+package-lock.json
+
+# Env files (excepto .env.production que sí queremos)
+.env
+backend/.env
+
+# Vite build
+frontend/dist/
+
+# Railway / misc
+*.toml.bak

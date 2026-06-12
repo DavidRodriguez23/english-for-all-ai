@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 from app.db.database import init_db
 from app.routes.chat import router as chat_router
@@ -8,11 +9,9 @@ from app.routes.chat import router as chat_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: initialize the database tables
     await init_db()
     print("✅ Database initialized")
     yield
-    # Shutdown: nothing to clean up for SQLite
 
 
 app = FastAPI(
@@ -22,14 +21,24 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS — allow the frontend (React dev server + production)
+# CORS — allow frontend origins
+# FRONTEND_URL env var lets you add any domain without redeploying
+FRONTEND_URL = os.getenv("FRONTEND_URL", "")
+
+origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "https://english-for-all-ai.vercel.app",
+    "https://english-for-all-ai-production.up.railway.app",
+]
+
+if FRONTEND_URL:
+    origins.append(FRONTEND_URL)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # Vite dev server
-        "http://localhost:3000",   # Alternative dev port
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
