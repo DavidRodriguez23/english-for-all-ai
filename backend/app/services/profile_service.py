@@ -1,12 +1,33 @@
+from sqlmodel import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import UserProfile
 
-user_profiles = {}
 
-def get_profile(user_id: str):
+async def get_or_create_profile(
+    user_id: str,
+    session: AsyncSession
+) -> UserProfile:
 
-    if user_id not in user_profiles:
-        user_profiles[user_id] = UserProfile(
-            user_id=user_id
-        )
+    result = await session.execute(
+        select(UserProfile).where(UserProfile.user_id == user_id)
+    )
+    profile = result.scalar_one_or_none()
 
-    return user_profiles[user_id]
+    if not profile:
+        profile = UserProfile(user_id=user_id)
+        session.add(profile)
+        await session.commit()
+        await session.refresh(profile)
+
+    return profile
+
+
+async def save_profile(
+    profile: UserProfile,
+    session: AsyncSession
+) -> UserProfile:
+
+    session.add(profile)
+    await session.commit()
+    await session.refresh(profile)
+    return profile

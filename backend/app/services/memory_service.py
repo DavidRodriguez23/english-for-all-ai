@@ -1,58 +1,87 @@
-from app.models.session import ChatSession
-from app.models.message import Message
+from sqlmodel import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
 
-conversation_store = {}
+from app.models.session import Message, ChatSession
 
 
-def get_session(session_id: str, user_id: str):
+async def ensure_session(
+    session_id: str,
+    user_id: str,
+    db: AsyncSession
+):
+    result = await db.execute(
+        select(ChatSession).where(ChatSession.session_id == session_id)
+    )
+    chat_session = result.scalar_one_or_none()
 
-    if session_id not in conversation_store:
-
-        conversation_store[session_id] = ChatSession(
+    if not chat_session:
+        chat_session = ChatSession(
             session_id=session_id,
             user_id=user_id
         )
+        db.add(chat_session)
+        await db.commit()
 
-    return conversation_store[session_id]
+    return chat_session
 
 
-def add_user_message(
+async def add_message(
     session_id: str,
     user_id: str,
-    content: str
+    role: str,
+    content: str,
+    db: AsyncSession
 ):
+    await ensure_session(session_id, user_id, db)
 
-    session = get_session(session_id, user_id)
-
-    session.messages.append(
-        Message(
-            role="user",
-            content=content
-        )
+    message = Message(
+        session_id=session_id,
+        user_id=user_id,
+        role=role,
+        content=content
     )
+    db.add(message)
+
+    # Update session timestamp
+    result = await db.execute(
+        select(ChatSession).where(ChatSession.session_id == session_id)
+    )
+    chat_session = result.scalar_one_or_none()
+    if chat_session:
+        chat_session.updated_at = datetime.now()
+        db.add(chat_session)
+
+    await db.commit()
+    return message
 
 
-def add_assistant_message(
+async def get_conversation_history(
     session_id: str,
     user_id: str,
-    content: str
-):
+    db: AsyncSession,
+    limit: int = 20
+) -> list[Message]:
 
-    session = get_session(session_id, user_id)
-
-    session.messages.append(
-        Message(
-            role="assistant",
-            content=content
-        )
+    result = await db.execute(
+        select(Message)
+        .where(Message.session_id == session_id)
+        .where(Message.user_id == user_id)
+        .order_by(Message.timestamp.desc())
+        .limit(limit)
     )
+    messages = result.scalars().all()
+    # Return in chronological order
+    return list(reversed(messages))
 
 
-def get_conversation_history(
-    session_id: str,
-    user_id: str
-):
+def format_history_for_prompt(messages: list[Message]) -> str:
+    if not messages:
+        return "No previous messages."
 
-    session = get_session(session_id, user_id)
+    lines = []
+    for msg in messages:
+        role_label = "Student" if msg.role == "user" else "Tutor"
+        lines.append(f"{role_label}: {msg.content}")
 
-    return session.messages
+    return "\n".join(lines)

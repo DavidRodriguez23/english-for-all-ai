@@ -1,63 +1,54 @@
 import os
-import requests
+import httpx
 
 from app.services.prompt_router import detect_intent
-from app.services.prompt_manager import get_prompt
+from app.services.prompt_manager import build_prompt
+from app.models.user import UserProfile
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-OLLAMA_URL = os.getenv("OLLAMA_URL")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+REQUEST_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "120"))
 
 
-def generate_tutor_response(
+async def generate_tutor_response(
     message: str,
     level: str,
-    profile
-):
+    profile: UserProfile,
+    history: str = ""
+) -> str:
+    """
+    Detect intent → build the correct prompt with all
+    placeholders filled → call Ollama → return the response.
+    """
 
     intent = detect_intent(message)
+    print(f"[LLM] Intent: {intent} | Level: {level}")
 
-    selected_prompt = get_prompt(intent)
-
-    print(f"Intent detected: {intent}")
-
-    student_context = f"""
-Student Profile
-
-Name: {profile.name}
-Age: {profile.age}
-Native Language: {profile.native_language}
-English Level: {profile.english_level}
-Learning Goal: {profile.learning_goal}
-"""
-
-    prompt = f"""
-{selected_prompt}
-
-{student_context}
-
-Conversation History:
-{message}
-
-Current Level:
-{level}
-"""
+    prompt = build_prompt(
+        intent=intent,
+        message=message,
+        level=level,
+        profile=profile,
+        history=history
+    )
 
     payload = {
         "model": OLLAMA_MODEL,
         "prompt": prompt,
-        "stream": False
+        "stream": False,
+        "options": {
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "num_predict": 512,
+        }
     }
 
-    response = requests.post(
-        OLLAMA_URL,
-        json=payload,
-        timeout=120
-    )
-
-    response.raise_for_status()
-
-    return response.json()["response"]
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+        response = await client.post(OLLAMA_URL, json=payload)
+        response.raise_for_status()
+        result = response.json()
+        return result.get("response", "").strip()
