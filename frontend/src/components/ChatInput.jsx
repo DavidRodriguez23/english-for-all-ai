@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useT } from '../hooks/useT'
+import { VoiceButton } from './VoiceButton'
 
 export function ChatInput({ onSend, isLoading, disabled }) {
   const [text, setText] = useState('')
+  const [voiceText, setVoiceText] = useState('')
   const textareaRef = useRef(null)
   const t = useT()
 
@@ -18,6 +20,7 @@ export function ChatInput({ onSend, isLoading, disabled }) {
     if (!text.trim() || isLoading || disabled) return
     onSend(text)
     setText('')
+    setVoiceText('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
   }
 
@@ -28,21 +31,59 @@ export function ChatInput({ onSend, isLoading, disabled }) {
     }
   }
 
+  // Voice result — fill textarea then auto-send
+  const handleVoiceResult = (transcript) => {
+    setVoiceText(transcript)
+    setText(transcript)
+    // Small delay so user sees what was transcribed
+    setTimeout(() => {
+      onSend(transcript)
+      setText('')
+      setVoiceText('')
+    }, 600)
+  }
+
   const canSend = text.trim().length > 0 && !isLoading && !disabled
 
   return (
     <div className="p-3">
       <div className="glass rounded-2xl flex items-end gap-2 p-2 max-w-2xl mx-auto">
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
+
+        {/* Voice button — left side */}
+        <VoiceButton
+          onResult={handleVoiceResult}
           disabled={isLoading || disabled}
-          placeholder={t.inputPlaceholder}
-          rows={1}
-          className="flex-1 bg-transparent text-cloud-200 placeholder-cloud-600 text-sm resize-none outline-none px-3 py-2 leading-relaxed disabled:opacity-50 max-h-40 overflow-y-auto"
         />
+
+        {/* Textarea */}
+        <div className="flex-1 relative">
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={isLoading || disabled}
+            placeholder={t.inputPlaceholder}
+            rows={1}
+            className="w-full bg-transparent text-cloud-200 placeholder-cloud-600 text-sm resize-none outline-none px-2 py-2 leading-relaxed disabled:opacity-50 max-h-40 overflow-y-auto"
+          />
+
+          {/* Voice transcript preview */}
+          <AnimatePresence>
+            {voiceText && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 flex items-center px-2"
+              >
+                <span className="text-sm text-violet-300 italic">"{voiceText}"</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Send button */}
         <motion.button
           onClick={handleSend}
           disabled={!canSend}
@@ -62,6 +103,7 @@ export function ChatInput({ onSend, isLoading, disabled }) {
           )}
         </motion.button>
       </div>
+
       <p className="text-center text-xs text-cloud-600 mt-2">{t.inputHint}</p>
     </div>
   )
