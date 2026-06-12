@@ -9,40 +9,40 @@ from app.models.user import UserProfile
 load_dotenv()
 
 # --- Provider detection ---
-# GOOGLE_API_KEY set → Gemini (production, free)
-# Otherwise         → Ollama (local dev)
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
-USE_GEMINI = bool(GOOGLE_API_KEY)
+# OPENROUTER_API_KEY → OpenRouter (production, free models)
+# Otherwise          → Ollama (local dev)
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+USE_OPENROUTER = bool(OPENROUTER_API_KEY)
 
 # Ollama (local)
 OLLAMA_URL   = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 
-# Gemini (production) — free tier, fast, great for English tutoring
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-GEMINI_URL   = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+# OpenRouter (production) — free models available
+OPENROUTER_URL   = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
 
 REQUEST_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "60"))
 
 
-async def _call_gemini(prompt: str) -> str:
-    payload = {
-        "contents": [
-            {"parts": [{"text": prompt}]}
-        ],
-        "generationConfig": {
-            "temperature": 0.7,
-            "maxOutputTokens": 1024,
-            "topP": 0.9,
-        }
+async def _call_openrouter(prompt: str) -> str:
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://english-for-all-ai.vercel.app",
+        "X-Title": "English For All AI",
     }
-    url = f"{GEMINI_URL}?key={GOOGLE_API_KEY}"
-
+    payload = {
+        "model": OPENROUTER_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 1024,
+        "temperature": 0.7,
+    }
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
-        response = await client.post(url, json=payload)
+        response = await client.post(OPENROUTER_URL, headers=headers, json=payload)
         response.raise_for_status()
         data = response.json()
-        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        return data["choices"][0]["message"]["content"].strip()
 
 
 async def _call_ollama(prompt: str) -> str:
@@ -69,7 +69,7 @@ async def generate_tutor_response(
     history: str = "",
 ) -> str:
     intent = detect_intent(message)
-    provider = "Gemini" if USE_GEMINI else "Ollama"
+    provider = "OpenRouter" if USE_OPENROUTER else "Ollama"
     print(f"[LLM] Intent: {intent} | Level: {level} | Provider: {provider}")
 
     prompt = build_prompt(
@@ -80,7 +80,7 @@ async def generate_tutor_response(
         history=history,
     )
 
-    if USE_GEMINI:
-        return await _call_gemini(prompt)
+    if USE_OPENROUTER:
+        return await _call_openrouter(prompt)
     else:
         return await _call_ollama(prompt)
