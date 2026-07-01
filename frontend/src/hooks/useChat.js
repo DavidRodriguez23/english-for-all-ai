@@ -3,8 +3,8 @@ import { useStore } from '../store/useStore'
 import { api } from '../services/api'
 import { v4 as uuidv4 } from 'uuid'
 import { isWebGPUSupported } from '../services/webllmEngine'
-import { generateVocabularyLocally } from '../services/localVocabulary'
-import { isVocabularyQuestion } from '../utils/detectVocabularyIntent'
+import { detectIntent } from '../utils/detectIntent'
+import { getLocalHandler } from '../services/intentRegistry'
 
 export function useChat() {
   const {
@@ -37,10 +37,16 @@ export function useChat() {
       addMessage(userMessage)
       setLoading(true)
 
-      if (isWebGPUSupported() && isVocabularyQuestion(text)) {
+      const intent = detectIntent(text)
+      const localHandler = getLocalHandler(intent)
+
+      // Si este intent tiene generador local y el dispositivo soporta
+      // WebGPU, intenta primero ahi. Costo $0, sin cuota. Cualquier
+      // falla cae automaticamente a la nube.
+      if (isWebGPUSupported() && localHandler) {
         try {
           setWebllmStatus('loading')
-          const content = await generateVocabularyLocally(text.trim(), level, (progress) => {
+          const content = await localHandler(text.trim(), level, (progress) => {
             setWebllmStatus(progress < 1 ? 'loading' : 'ready')
           })
           setWebllmStatus('ready')
@@ -51,11 +57,12 @@ export function useChat() {
             content,
             timestamp: new Date().toISOString(),
             source: 'local',
+            intent,
           })
           setLoading(false)
           return
         } catch (err) {
-          console.warn('[webllm] Generación local falló, usando la nube:', err)
+          console.warn(`[router] "${intent}" local fallo, usando la nube:`, err)
           setWebllmStatus('unsupported')
         }
       }
@@ -74,6 +81,7 @@ export function useChat() {
           content: data.response,
           timestamp: new Date().toISOString(),
           profileUpdated: data.profile_updated,
+          intent,
         })
       } catch (err) {
         setError(err.message)
