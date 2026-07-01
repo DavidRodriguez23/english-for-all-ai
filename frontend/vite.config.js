@@ -7,6 +7,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MB, para dar espacio al motor de WebLLM
+      },
       manifest: {
         name: 'English For All',
         short_name: 'English AI',
