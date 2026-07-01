@@ -20,6 +20,7 @@ export const useStore = create(
       // UI state
       isLoading: false,
       error: null,
+      webllmStatus: 'idle', // 'idle' | 'loading' | 'ready' | 'unsupported'
 
       // Profile data from backend
       profile: null,
@@ -41,6 +42,7 @@ export const useStore = create(
       setLoading: (isLoading) => set({ isLoading }),
       setError: (error) => set({ error }),
       clearError: () => set({ error: null }),
+      setWebllmStatus: (webllmStatus) => set({ webllmStatus }),
 
       newSession: () =>
         set({
